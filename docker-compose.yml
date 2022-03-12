@@ -9,4 +9,27 @@ services:
       - './volumes/postgres:/var/lib/postgresql/data'
     ports:
       - '5434:5432'
+    networks:
+      - fastapi_network
 
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    links:
+      - postgres
+    depends_on:
+      - postgres
+    env_file: ./.env
+    ports:
+      - '8000:8000'
+    networks:
+      - fastapi_network
+    command: bash -c "alembic upgrade head && uvicorn api:app --host 0.0.0.0 --port 8000 --workers 2"
+    # to multiple workers
+    # command: 'uvicorn main:main --host 0.0.0.0 --port 8000 --workers 4'
+
+networks:
+  fastapi_network:
+    driver: bridge

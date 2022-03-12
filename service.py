@@ -129,5 +129,7 @@ class RequestService(BaseService):
             self._provider.select_count(),
             self._provider.select_duplicates_count()
         )
+        if not all_count:
+            return 0
 
         return (duplicates_count * 100) / all_count

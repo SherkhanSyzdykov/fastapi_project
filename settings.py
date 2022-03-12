@@ -6,7 +6,7 @@ load_dotenv()
 
 
 # HTTP service config
-UVICORN_HOST = os.environ.get('UVICORN_HOST', 'localhost')
+UVICORN_HOST = os.environ.get('UVICORN_HOST', '0.0.0.0')
 UVICORN_PORT = os.environ.get('UVICORN_PORT', 8000)
 
 
@@ -27,4 +27,4 @@ SQLALCHEMY_ASYNC_URL = f'postgresql+asyncpg://' \
                        f'{POSTGRES_HOST}:{POSTGRES_PORT}/{POSTGRES_NAME}'
 SQLALCHEMY_POOL_SIZE = 10
 SQLALCHEMY_MAX_OVERFLOW = 10
-SQLALCHEMY_ECHO = True
+SQLALCHEMY_ECHO = False
