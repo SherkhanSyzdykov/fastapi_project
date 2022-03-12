@@ -1,5 +1,5 @@
 from typing import Type
-from sqlalchemy import insert, select
+from sqlalchemy import insert, select, delete, update, func
 from sqlalchemy.ext.asyncio import async_scoped_session
 import adapters
 import domain
@@ -94,3 +94,52 @@ class RequestProvider(BaseProvider):
 
         records = await self.session.scalars(select_stmt)
         return adapters.request_records_to_requests_domain(records=records)
+
+    async def delete(
+        self,
+        id: int
+    ):
+        delete_stmt = delete(self._model).where(self._model.id == id)
+        await self.session.execute(delete_stmt)
+
+    async def update(
+        self,
+        id: int,
+        body: str
+    ) -> domain.Request:
+        update_stmt = update(self._model).where(
+            self._model.id == id
+        ).values(body=body).returning(self._model)
+        select_stmt = select(self._model).from_statement(update_stmt)
+
+        record = await self.session.scalar(select_stmt)
+        return adapters.request_record_to_request_domain(record=record)
+
+    async def select_count(self) -> int:
+        select_stmt = select(func.count(self._model.id))
+        count = await self.session.scalar(select_stmt)
+        if count is None:
+            return 0
+        return count
+
+    async def select_duplicates_count(self) -> int:
+        """
+        SQL STATEMENT:
+        SELECT sum(anon_1.group_counts) AS sum_1
+        FROM (SELECT request.body AS body, count(request.body) AS group_counts
+        FROM request GROUP BY request.body
+        HAVING count(request.body) > :count_1) AS anon_1
+        :return:
+        """
+        subquery_alias = select(
+            self._model.body,
+            func.count(self._model.body).label('group_counts')
+        ).group_by(self._model.body).having(
+            func.count(self._model.body) > 1
+        ).subquery().alias()
+        select_stmt = select(func.sum(subquery_alias.c.group_counts)).select_from(subquery_alias)
+
+        duplicates_count = await self.session.scalar(select_stmt)
+        if duplicates_count is None:
+            return 0
+        return duplicates_count

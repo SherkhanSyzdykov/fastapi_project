@@ -1,3 +1,4 @@
+import asyncio
 import base64
 from typing import Any, Dict
 from sqlalchemy.ext.asyncio import async_scoped_session
@@ -53,13 +54,10 @@ class RequestService(BaseService):
         self._provider = RequestProvider(session=session)
         self._url_service = UrlService(session=session)
 
-    async def create(
+    def _encode_body(
         self,
-        url: str,
         body: Dict[str, Any]
-    ) -> domain.Request:
-        domain_url: domain.Url = await self._url_service.get_or_create(url=url)
-
+    ) -> str:
         keys_and_values = ''
         for key, value in body.items():
             keys_and_values += f'{key}+{value}'
@@ -70,8 +68,19 @@ class RequestService(BaseService):
             keys_and_values.encode('utf-8')
         ).decode('utf-8')
 
+        return encoded_keys_and_values
+
+    async def create(
+        self,
+        url: str,
+        body: Dict[str, Any]
+    ) -> domain.Request:
+        domain_url: domain.Url = await self._url_service.get_or_create(url=url)
+
+        encoded_body = self._encode_body(body=body)
+
         return await self._provider.insert(
-            body=encoded_keys_and_values,
+            body=encoded_body,
             url_id=domain_url.id
         )
 
@@ -86,3 +95,39 @@ class RequestService(BaseService):
         key: str
     ) -> domain.Requests:
         return await self._provider.select_multi(body=key)
+
+    async def remove(
+        self,
+        key: str
+    ):
+        """
+        Дубликаты тоже надо удалять???
+        :param key:
+        :return:
+        """
+        request: domain.Request = await self.get(key=key)
+        await self._provider.delete(id=request.id)
+
+    async def edit(
+        self,
+        key: str,
+        body: Dict[str, Any]
+    ) -> domain.Request:
+        """
+        Что делать с дупликатами?
+        :param key:
+        :param body:
+        :return:
+        """
+        request: domain.Request = await self.get(key=key)
+        encoded_body = self._encode_body(body=body)
+
+        return await self._provider.update(id=request.id, body=encoded_body)
+
+    async def get_statistic(self) -> int:
+        all_count, duplicates_count = await asyncio.gather(
+            self._provider.select_count(),
+            self._provider.select_duplicates_count()
+        )
+
+        return (duplicates_count * 100) / all_count
